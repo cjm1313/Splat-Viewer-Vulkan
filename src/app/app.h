@@ -33,10 +33,16 @@ class App {
     uint32_t W_HEIGHT = 720;
     GLFWwindow* window = nullptr;
 
+    
     vk::raii::Context context;
     vk::raii::Instance instance = nullptr;
+    
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
+    
     vk::raii::PhysicalDevice physicalDevice = nullptr;
+    vk::raii::Device device = nullptr;
+    
+    vk::raii::Queue graphicsQueue = nullptr;
 
     std::vector<const char *> requiredDeviceExtension = {
 	    vk::KHRSwapchainExtensionName};
@@ -52,7 +58,10 @@ class App {
     std::vector<const char *> getRequiredInstanceExtensions();
 
     bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice);
+
     void pickPhysicalDevice();
+
+    void createLogicalDevice();
 
     
 
