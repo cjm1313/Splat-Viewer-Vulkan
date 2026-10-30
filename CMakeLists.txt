@@ -16,6 +16,7 @@ find_package(tinyply CONFIG REQUIRED)
 # Source Files
 add_executable(Splat-Viewer-Vulkan
     src/main.cpp
+    src/app/app.cpp
     
 )
 
