@@ -36,6 +36,10 @@ class App {
     vk::raii::Context context;
     vk::raii::Instance instance = nullptr;
     vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
+    vk::raii::PhysicalDevice physicalDevice = nullptr;
+
+    std::vector<const char *> requiredDeviceExtension = {
+	    vk::KHRSwapchainExtensionName};
 
 
 
@@ -46,6 +50,9 @@ class App {
     void setupDebugMessenger();
 
     std::vector<const char *> getRequiredInstanceExtensions();
+
+    bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice);
+    void pickPhysicalDevice();
 
     
 
