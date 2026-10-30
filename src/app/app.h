@@ -5,8 +5,18 @@
 
 #include <iostream>
 #include <stdint.h>
-
+#include <vector>
 #include <vulkan/vulkan_raii.hpp>
+
+const std::vector<char const *> validationLayers = {
+    "VK_LAYER_KHRONOS_validation"};
+
+#ifdef NDEBUG
+constexpr bool enableValidationLayers = false;
+#else
+constexpr bool enableValidationLayers = true;
+#endif
+
 
 
 class App {
@@ -25,6 +35,7 @@ class App {
 
     vk::raii::Context context;
     vk::raii::Instance instance = nullptr;
+    vk::raii::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
 
 
@@ -32,10 +43,24 @@ class App {
 
     void createInstance();
 
+    void setupDebugMessenger();
+
+    std::vector<const char *> getRequiredInstanceExtensions();
+
+    
 
 
 
 
 };
+
+static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *) {
+		if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError || severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+		{
+			std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+		}
+
+		return vk::False;
+}
 
 #endif //MYAPP_SPLAT
