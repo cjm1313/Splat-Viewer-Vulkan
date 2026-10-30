@@ -54,8 +54,6 @@ if(NOT GLSLC_EXECUTABLE)
 endif()
 
 set(SHADER_SOURCES
-    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/splat.vert
-    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/splat.frag
 )
 
 set(SPV_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
