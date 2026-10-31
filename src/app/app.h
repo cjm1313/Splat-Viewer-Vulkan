@@ -24,11 +24,9 @@ constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 class App {
 
   public:
-    App();
 
     void run();
 
-    ~App();
 
   private:
     uint32_t W_WIDTH = 1280;
@@ -66,7 +64,7 @@ class App {
 	  std::vector<vk::raii::Fence>         inFlightFences;
     uint32_t                             frameIndex = 0;
 
-
+    bool framebufferResized = false;
     std::vector<const char *> requiredDeviceExtension = {
 	    vk::KHRSwapchainExtensionName};
 
@@ -98,7 +96,7 @@ class App {
 
     [[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char> &code) const;
 
-    void createCommandBuffer();
+    void createCommandBuffers();
     
     void createCommandPool();
 
@@ -116,59 +114,27 @@ class App {
 
     void drawFrame();
 
+    void cleanupSwapChain();
 
+    void recreateSwapChain();
+
+    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *);
+    
+    static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities);
+
+    static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const &availableFormats);
+
+    static vk::PresentModeKHR chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const &availablePresentModes);
+
+    static std::vector<char> readFile(const std::string &filename);
+
+    static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
 
 
 
 };
 
-static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *) {
-		if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError || severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
-		{
-			std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
-		}
 
-		return vk::False;
-}
-
-static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities){
-  auto minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
-  if ((0 < surfaceCapabilities.maxImageCount) && (surfaceCapabilities.maxImageCount < minImageCount))
-  {
-    minImageCount = surfaceCapabilities.maxImageCount;
-  }
-  return minImageCount;
-}
-
-static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const &availableFormats){
-  assert(!availableFormats.empty());
-  const auto formatIt = std::ranges::find_if(
-      availableFormats,
-      [](const auto &format) { return format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear; });
-  return formatIt != availableFormats.end() ? *formatIt : availableFormats[0];
-}
-
-
-static vk::PresentModeKHR chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const &availablePresentModes){
-  assert(std::ranges::any_of(availablePresentModes, [](auto presentMode) { return presentMode == vk::PresentModeKHR::eFifo; }));
-  return std::ranges::any_of(availablePresentModes,
-                              [](const vk::PresentModeKHR value) { return vk::PresentModeKHR::eMailbox == value; }) ?
-              vk::PresentModeKHR::eMailbox :
-              vk::PresentModeKHR::eFifo;
-}
-
-static std::vector<char> readFile(const std::string &filename){
-  std::ifstream file(filename, std::ios::ate | std::ios::binary);
-  if (!file.is_open())
-  {
-    throw std::runtime_error("failed to open file!");
-  }
-  std::vector<char> buffer(file.tellg());
-  file.seekg(0, std::ios::beg);
-  file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-  file.close();
-  return buffer;
-}
 
 
 #endif //MYAPP_SPLAT

@@ -8,13 +8,14 @@
 #include <vma/vk_mem_alloc.h>
 
 
-App::App(){
-    if (!glfwInit()){
+
+void App::run(){
+	if (!glfwInit()){
         throw std::runtime_error("Failed to initialize GLFW");
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // not using opengl
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE); // no window resizing
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 
     window = glfwCreateWindow(W_WIDTH, W_HEIGHT, "Splat Viewer", nullptr, nullptr);
@@ -26,11 +27,10 @@ App::App(){
         
     }
 
+	glfwSetWindowUserPointer(window, this);
+	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+
     initVulkan();
-}
-
-
-void App::run(){
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -38,6 +38,9 @@ void App::run(){
     }
 
 	device.waitIdle();
+
+	glfwDestroyWindow(window);
+    glfwTerminate();
 
 }
 
@@ -335,7 +338,7 @@ void App::createCommandPool(){
 	commandPool = vk::raii::CommandPool(device, poolInfo);
 }
 
-void App::createCommandBuffer(){
+void App::createCommandBuffers(){
 	vk::CommandBufferAllocateInfo allocInfo{.commandPool = commandPool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = MAX_FRAMES_IN_FLIGHT};
 	commandBuffers = vk::raii::CommandBuffers(device, allocInfo);
 }
@@ -435,48 +438,101 @@ void App::transition_image_layout(
 }
 
 
-void App::drawFrame(){
-	// Note: inFlightFences, presentCompleteSemaphores, and commandBuffers are indexed by frameIndex,
-	//       while renderFinishedSemaphores is indexed by imageIndex
-	auto fenceResult = device.waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
-	if (fenceResult != vk::Result::eSuccess)
+void App::drawFrame() {
+    // Wait for the previous frame using this slot to finish
+    auto fenceResult = device.waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
+    if (fenceResult != vk::Result::eSuccess) {
+        throw std::runtime_error("failed to wait for fence!");
+    }
+
+    // Acquire the next image from the swap chain (catch OutOfDateKHRError on resize)
+    uint32_t imageIndex;
+    try {
+        auto [result, idx] = swapChain.acquireNextImage(
+            UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
+
+        if (result == vk::Result::eErrorOutOfDateKHR) {
+            recreateSwapChain();
+            return;
+        }
+        if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
+        imageIndex = idx;
+    } catch (const vk::OutOfDateKHRError&) {
+        recreateSwapChain();
+        return;
+    }
+
+    // Only reset the fence AFTER successfully acquiring an image to prevent a deadlock if we return early above
+    device.resetFences(*inFlightFences[frameIndex]);
+
+    // Reset and record the command buffer for the acquired swap chain image
+    commandBuffers[frameIndex].reset();
+    recordCommandBuffer(imageIndex);
+
+    // Submit the command buffer to the queue
+    vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+    const vk::SubmitInfo submitInfo{
+        .waitSemaphoreCount   = 1,
+        .pWaitSemaphores      = &*presentCompleteSemaphores[frameIndex],
+        .pWaitDstStageMask    = &waitDestinationStageMask,
+        .commandBufferCount   = 1,
+        .pCommandBuffers      = &*commandBuffers[frameIndex],
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores    = &*renderFinishedSemaphores[imageIndex]
+    };
+    queue.submit(submitInfo, *inFlightFences[frameIndex]);
+
+    // Present the rendered image (catch OutOfDateKHRError thrown by vk::raii::Queue::presentKHR)
+    const vk::PresentInfoKHR presentInfoKHR{
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &*renderFinishedSemaphores[imageIndex],
+        .swapchainCount     = 1,
+        .pSwapchains        = &*swapChain,
+        .pImageIndices      = &imageIndex
+    };
+
+    try {
+        auto result = queue.presentKHR(presentInfoKHR);
+        if (result == vk::Result::eSuboptimalKHR || framebufferResized) {
+            framebufferResized = false;
+            recreateSwapChain();
+        } else if (result != vk::Result::eSuccess) {
+            throw std::runtime_error("failed to present swap chain image!");
+        }
+    } catch (const vk::OutOfDateKHRError&) {
+        framebufferResized = false;
+        recreateSwapChain();
+    }
+
+    // Advance to the next frame in flight
+    frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+void App::cleanupSwapChain(){
+    swapChainImageViews.clear();
+    swapChain = nullptr;
+}
+
+void App::recreateSwapChain(){
+    int width = 0, height = 0;
+	glfwGetFramebufferSize(window, &width, &height);
+	while ((width == 0 || height == 0) && !glfwWindowShouldClose(window))
 	{
-		throw std::runtime_error("failed to wait for fence!");
+		glfwGetFramebufferSize(window, &width, &height);
+		glfwWaitEvents();
 	}
-	device.resetFences(*inFlightFences[frameIndex]);
-
-	auto [result, imageIndex] = swapChain.acquireNextImage(UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
-
-	commandBuffers[frameIndex].reset();
-	recordCommandBuffer(imageIndex);
-
-	vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-	const vk::SubmitInfo   submitInfo{.waitSemaphoreCount   = 1,
-										.pWaitSemaphores      = &*presentCompleteSemaphores[frameIndex],
-										.pWaitDstStageMask    = &waitDestinationStageMask,
-										.commandBufferCount   = 1,
-										.pCommandBuffers      = &*commandBuffers[frameIndex],
-										.signalSemaphoreCount = 1,
-										.pSignalSemaphores    = &*renderFinishedSemaphores[imageIndex]};
-	queue.submit(submitInfo, *inFlightFences[frameIndex]);
-
-	const vk::PresentInfoKHR presentInfoKHR{.waitSemaphoreCount = 1,
-											.pWaitSemaphores    = &*renderFinishedSemaphores[imageIndex],
-											.swapchainCount     = 1,
-											.pSwapchains        = &*swapChain,
-											.pImageIndices      = &imageIndex};
-	result = queue.presentKHR(presentInfoKHR);
-	switch (result)
+	if (glfwWindowShouldClose(window))
 	{
-		case vk::Result::eSuccess:
-			break;
-		case vk::Result::eSuboptimalKHR:
-			std::cout << "vk::Queue::presentKHR returned vk::Result::eSuboptimalKHR !\n";
-			break;
-		default:
-			break;        // an unexpected result is returned!
+		return;
 	}
-	frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+
+	device.waitIdle();
+
+	cleanupSwapChain();
+	createSwapChain();
+	createImageViews();
 }
 
 void App::initVulkan(){
@@ -489,13 +545,63 @@ void App::initVulkan(){
 	createImageViews();
 	createGraphicsPipeline();
 	createCommandPool();
-	createCommandBuffer();
+	createCommandBuffers();
 	createSyncObjects();
 
 }
 
 
-App::~App(){
-    glfwDestroyWindow(window);
-    glfwTerminate();
+VKAPI_ATTR vk::Bool32 VKAPI_CALL App::debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *) {
+		if (severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eError || severity == vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
+		{
+			std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+		}
+
+		return vk::False;
 }
+
+uint32_t App::chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities){
+  auto minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
+  if ((0 < surfaceCapabilities.maxImageCount) && (surfaceCapabilities.maxImageCount < minImageCount))
+  {
+    minImageCount = surfaceCapabilities.maxImageCount;
+  }
+  return minImageCount;
+}
+
+vk::SurfaceFormatKHR App::chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const &availableFormats){
+  assert(!availableFormats.empty());
+  const auto formatIt = std::ranges::find_if(
+      availableFormats,
+      [](const auto &format) { return format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear; });
+  return formatIt != availableFormats.end() ? *formatIt : availableFormats[0];
+}
+
+
+vk::PresentModeKHR App::chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const &availablePresentModes){
+  assert(std::ranges::any_of(availablePresentModes, [](auto presentMode) { return presentMode == vk::PresentModeKHR::eFifo; }));
+  return std::ranges::any_of(availablePresentModes,
+                              [](const vk::PresentModeKHR value) { return vk::PresentModeKHR::eMailbox == value; }) ?
+              vk::PresentModeKHR::eMailbox :
+              vk::PresentModeKHR::eFifo;
+}
+
+std::vector<char> App::readFile(const std::string &filename){
+  std::ifstream file(filename, std::ios::ate | std::ios::binary);
+  if (!file.is_open())
+  {
+    throw std::runtime_error("failed to open file!");
+  }
+  std::vector<char> buffer(file.tellg());
+  file.seekg(0, std::ios::beg);
+  file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+  file.close();
+  return buffer;
+}
+
+void App::framebufferResizeCallback(GLFWwindow *window, int width, int height){
+		auto app                = reinterpret_cast<App *>(glfwGetWindowUserPointer(window));
+		app->framebufferResized = true;
+}
+
+
