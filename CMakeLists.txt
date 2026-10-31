@@ -34,6 +34,7 @@ target_compile_definitions(Splat-Viewer-Vulkan PRIVATE
     GLFW_INCLUDE_VULKAN
     GLM_FORCE_RADIANS
     GLM_FORCE_DEPTH_ZERO_TO_ONE
+    NOMINMAX
     SHADER_DIR="${CMAKE_CURRENT_BINARY_DIR}/shaders/"
     ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets/"
 )
@@ -55,7 +56,8 @@ if(NOT GLSLC_EXECUTABLE)
 endif()
 
 set(SHADER_SOURCES
-)
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.frag
+    ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.vert)
 
 set(SPV_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
 file(MAKE_DIRECTORY ${SPV_OUTPUT_DIR})
