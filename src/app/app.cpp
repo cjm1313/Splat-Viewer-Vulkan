@@ -4,12 +4,35 @@
 #include <cstdlib>
 #include <limits>
 #include <algorithm>
-#include <volk.h>
-#include <vma/vk_mem_alloc.h>
+#include <fstream>
+#include <iostream>
 
 
+App::App(){
+	
+	initWindow();
+
+    initVulkan();
+}
+
+App::~App(){
+	glfwDestroyWindow(window);
+    glfwTerminate();
+}
 
 void App::run(){
+	
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+		drawFrame();
+    }
+
+	device.waitIdle();
+
+
+}
+
+void App::initWindow(){
 	if (!glfwInit()){
         throw std::runtime_error("Failed to initialize GLFW");
     }
@@ -29,18 +52,24 @@ void App::run(){
 
 	glfwSetWindowUserPointer(window, this);
 	glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+}
 
-    initVulkan();
-
-    while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
-		drawFrame();
-    }
-
-	device.waitIdle();
-
-	glfwDestroyWindow(window);
-    glfwTerminate();
+void App::initVulkan(){
+	{
+		createInstance();
+		setupDebugMessenger();
+		createSurface();
+		pickPhysicalDevice();
+		createLogicalDevice();
+	}
+	{
+		createSwapChain();
+		createImageViews();
+		createGraphicsPipeline();
+		createCommandPool();
+		createCommandBuffers();
+		createSyncObjects();
+	}
 
 }
 
@@ -325,7 +354,7 @@ void App::createGraphicsPipeline() {
 	graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
 }
 
-[[nodiscard]] vk::raii::ShaderModule App::createShaderModule(const std::vector<char> &code) const {
+vk::raii::ShaderModule App::createShaderModule(const std::vector<char> &code) const {
 	vk::ShaderModuleCreateInfo createInfo{.codeSize = code.size() * sizeof(char), .pCode = reinterpret_cast<const uint32_t *>(code.data())};
 	vk::raii::ShaderModule     shaderModule{device, createInfo};
 
@@ -535,20 +564,7 @@ void App::recreateSwapChain(){
 	createImageViews();
 }
 
-void App::initVulkan(){
-    createInstance();
-    setupDebugMessenger();
-	createSurface();
-    pickPhysicalDevice();
-    createLogicalDevice();
-	createSwapChain();
-	createImageViews();
-	createGraphicsPipeline();
-	createCommandPool();
-	createCommandBuffers();
-	createSyncObjects();
 
-}
 
 
 VKAPI_ATTR vk::Bool32 VKAPI_CALL App::debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, void *) {
