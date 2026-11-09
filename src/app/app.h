@@ -1,19 +1,10 @@
 #ifndef MYAPP_SPLAT
 #define MYAPP_SPLAT
 
-#include <GLFW/glfw3.h>
+#include "app/myWindow.h"
 #include <stdint.h>
 #include <vector>
-#include <vulkan/vulkan_raii.hpp>
-
-const std::vector<char const *> validationLayers = {
-    "VK_LAYER_KHRONOS_validation"};
-
-#ifdef NDEBUG
-constexpr bool enableValidationLayers = false;
-#else
-constexpr bool enableValidationLayers = true;
-#endif
+#include "vk/vulkanContext.h"
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t W_WIDTH = 1280;
@@ -23,26 +14,16 @@ class App {
 
   public:
     App();
-    ~App();
+
     void run();
 
 
   private:
-    GLFWwindow* window = nullptr;
+    std::unique_ptr<MyWindow> myWindow = std::make_unique<MyWindow>(W_WIDTH,W_HEIGHT);
+    
+    std::unique_ptr<VulkanContext> VKContext = std::make_unique<VulkanContext>();
 
-    
-    vk::raii::Context                    context;
-    vk::raii::Instance                   instance = nullptr;
-    
-    vk::raii::DebugUtilsMessengerEXT     debugMessenger = nullptr;
-    
     vk::raii::SurfaceKHR                 surface = nullptr;
-    
-    uint32_t                             queueIndex     = ~0;
-    vk::raii::Queue                      queue          = nullptr;
-    vk::raii::PhysicalDevice             physicalDevice = nullptr;
-    vk::raii::Device                     device = nullptr;
-        
 
     vk::raii::SwapchainKHR               swapChain      = nullptr;
 	  std::vector<vk::Image>               swapChainImages;
@@ -60,12 +41,8 @@ class App {
 	  std::vector<vk::raii::Fence>         inFlightFences;
     uint32_t                             frameIndex = 0;
 
-    bool framebufferResized = false;
-    std::vector<const char *> requiredDeviceExtension = {
-	    vk::KHRSwapchainExtensionName};
-
-
-    void initWindow();
+    
+    
     
     void initVulkan();
 
@@ -74,8 +51,6 @@ class App {
     void setupDebugMessenger();
 
     std::vector<const char *> getRequiredInstanceExtensions();
-
-    bool isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDevice);
 
     void pickPhysicalDevice();
 
@@ -115,10 +90,7 @@ class App {
 
     void recreateSwapChain();
 
-    static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, 
-                                                          vk::DebugUtilsMessageTypeFlagsEXT type,
-                                                          const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData, 
-                                                          void *);
+    
     
     static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities);
 
@@ -128,7 +100,7 @@ class App {
 
     static std::vector<char> readFile(const std::string &filename);
 
-    static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
+    
 
 
 
