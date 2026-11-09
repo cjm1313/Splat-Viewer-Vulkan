@@ -9,8 +9,7 @@
 
 
 App::App(){
-	
-
+	VKContext = std::make_unique<VulkanContext>(*myWindow);
     initVulkan();
 }
 
@@ -26,66 +25,18 @@ void App::run(){
 }
 
 void App::initVulkan(){
-	{
-		createInstance();
-
-		setupDebugMessenger();
-		createSurface();
-		pickPhysicalDevice();
-		createLogicalDevice();
-	}
-	{
-		createSwapChain();
-		createImageViews();
-		createGraphicsPipeline();
-		createCommandPool();
-		createCommandBuffers();
-		createSyncObjects();
-	}
-
-}
-
-void App::createInstance(){
-	VKContext->setRequiredInstanceExtensions(getRequiredInstanceExtensions());
-    VKContext->createInstance();
-}
-
-
-
-void App::setupDebugMessenger(){
-	VKContext->setupDebugMessenger();
-}
-
-std::vector<const char *> App::getRequiredInstanceExtensions(){
-	uint32_t glfwExtensionCount = 0;
-	auto     glfwExtensions     = myWindow->getInstanceExtensions(glfwExtensionCount);
-
-	std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-	if (enableValidationLayers)
-	{
-		extensions.push_back(vk::EXTDebugUtilsExtensionName);
-	}
-
-	return extensions;
-}
-
-
-
-void App::pickPhysicalDevice(){
-	VKContext->pickPhysicalDevice();
-}
-
-void App::createLogicalDevice(){
-	VKContext->createLogicalDevice(surface);
-}
-
-void App::createSurface(){
-    surface = myWindow->createSurface(VKContext->getInstance());
+	createSwapChain();
+	createImageViews();
+	createGraphicsPipeline();
+	createCommandPool();
+	createCommandBuffers();
+	createSyncObjects();
 }
 
 void App::createSwapChain(){
 	auto& physicalDevice = VKContext->getPhysicalDevice();
 	auto& device = VKContext->getDevice();
+	auto& surface = VKContext->getSurface();
 	vk::SurfaceCapabilitiesKHR surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
 	swapChainExtent                                = chooseSwapExtent(surfaceCapabilities);
 	uint32_t minImageCount                         = chooseSwapMinImageCount(surfaceCapabilities);
@@ -414,11 +365,6 @@ void App::recreateSwapChain(){
 	createImageViews();
 }
 
-
-
-
-
-
 uint32_t App::chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities){
   auto minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
   if ((0 < surfaceCapabilities.maxImageCount) && (surfaceCapabilities.maxImageCount < minImageCount))
@@ -457,7 +403,3 @@ std::vector<char> App::readFile(const std::string &filename){
   file.close();
   return buffer;
 }
-
-
-
- 

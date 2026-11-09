@@ -1,4 +1,5 @@
 #include "vk/vulkanContext.h"
+#include "app/myWindow.h"
 
 #include <stdexcept>
 #include <cstdlib>
@@ -7,6 +8,31 @@
 #include <fstream>
 #include <iostream>
 
+VulkanContext::VulkanContext(const MyWindow& window){
+    requiredInstanceExtensions = getRequiredInstanceExtensions(window);
+    createInstance();
+    setupDebugMessenger();
+    createSurface(window);
+    pickPhysicalDevice();
+    createLogicalDevice();
+}
+
+std::vector<const char *> VulkanContext::getRequiredInstanceExtensions(const MyWindow& window){
+	uint32_t glfwExtensionCount = 0;
+	auto     glfwExtensions     = window.getInstanceExtensions(glfwExtensionCount);
+
+	std::vector extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+	if (enableValidationLayers)
+	{
+		extensions.push_back(vk::EXTDebugUtilsExtensionName);
+	}
+
+	return extensions;
+}
+
+void VulkanContext::createSurface(const MyWindow& window){
+    surface = window.createSurface(instance);
+}
 
 void VulkanContext::createInstance(){
     constexpr vk::ApplicationInfo appInfo{.pApplicationName   = "Splat Viewer",
@@ -61,7 +87,13 @@ const vk::raii::Instance& VulkanContext::getInstance() const{
         throw std::runtime_error("Vulkan instance is null!");
     }
     return instance;
-    
+}
+
+const vk::raii::SurfaceKHR& VulkanContext::getSurface() const{
+    if (surface == nullptr) {
+        throw std::runtime_error("Surface is null!");
+    }
+    return surface;
 }
 
 const vk::raii::Device& VulkanContext::getDevice() const {
@@ -85,11 +117,6 @@ const vk::raii::Queue& VulkanContext::getQueue() const{
 const uint32_t VulkanContext::getQueueIndex() const{
     return queueIndex;
 }
-
-void VulkanContext::setRequiredInstanceExtensions(std::vector<const char*> required){
-    requiredInstanceExtensions = required;
-}
-
 
 void VulkanContext::setupDebugMessenger(){
     if (!enableValidationLayers)
@@ -154,7 +181,7 @@ bool VulkanContext::isDeviceSuitable(vk::raii::PhysicalDevice const &physicalDev
 	return supportsVulkan1_4 && supportsGraphics && supportsAllRequiredExtensions && supportsRequiredFeatures;
 }
 
-void VulkanContext::createLogicalDevice(const vk::raii::SurfaceKHR& surface){
+void VulkanContext::createLogicalDevice(){
     // find the index of the first queue family that supports graphics
     std::vector<vk::QueueFamilyProperties> queueFamilyProperties = physicalDevice.getQueueFamilyProperties();
 

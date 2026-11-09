@@ -21,9 +21,7 @@ class App {
   private:
     std::unique_ptr<MyWindow> myWindow = std::make_unique<MyWindow>(W_WIDTH,W_HEIGHT);
     
-    std::unique_ptr<VulkanContext> VKContext = std::make_unique<VulkanContext>();
-
-    vk::raii::SurfaceKHR                 surface = nullptr;
+    std::unique_ptr<VulkanContext> VKContext = nullptr;
 
     vk::raii::SwapchainKHR               swapChain      = nullptr;
 	  std::vector<vk::Image>               swapChainImages;
@@ -41,22 +39,7 @@ class App {
 	  std::vector<vk::raii::Fence>         inFlightFences;
     uint32_t                             frameIndex = 0;
 
-    
-    
-    
     void initVulkan();
-
-    void createInstance();
-
-    void setupDebugMessenger();
-
-    std::vector<const char *> getRequiredInstanceExtensions();
-
-    void pickPhysicalDevice();
-
-    void createLogicalDevice();
-
-    void createSurface();
 
     void createSwapChain();
 
@@ -90,8 +73,6 @@ class App {
 
     void recreateSwapChain();
 
-    
-    
     static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities);
 
     static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const &availableFormats);
@@ -100,13 +81,6 @@ class App {
 
     static std::vector<char> readFile(const std::string &filename);
 
-    
-
-
-
 };
-
-
-
 
 #endif //MYAPP_SPLAT

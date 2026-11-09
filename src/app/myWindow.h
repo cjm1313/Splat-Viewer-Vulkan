@@ -13,7 +13,7 @@ class MyWindow{
         int wantsToClose();
         void pollEvents();
 
-        vk::raii::SurfaceKHR createSurface(const vk::raii::Instance& instance);
+        vk::raii::SurfaceKHR createSurface(const vk::raii::Instance& instance) const;
 
         const char** getInstanceExtensions(uint32_t &glfwExtensionCount) const;
 

@@ -68,7 +68,7 @@ void MyWindow::framebufferResizeCallback(GLFWwindow *window, int width, int heig
 		myWindow->framebufferResized = true;
 }
 
-vk::raii::SurfaceKHR MyWindow::createSurface(const vk::raii::Instance& instance){
+vk::raii::SurfaceKHR MyWindow::createSurface(const vk::raii::Instance& instance) const{
     VkSurfaceKHR       _surface;
     
     if (glfwCreateWindowSurface(*instance, window, nullptr, &_surface) != 0) {
