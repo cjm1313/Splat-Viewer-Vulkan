@@ -2,8 +2,6 @@
 #include "app/myWindow.h"
 
 #include <stdexcept>
-#include <cstdlib>
-#include <limits>
 #include <algorithm>
 #include <fstream>
 #include <iostream>

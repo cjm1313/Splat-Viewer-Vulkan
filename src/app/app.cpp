@@ -1,7 +1,6 @@
 #include "app/app.h"
 
 #include <stdexcept>
-#include <cstdlib>
 #include <limits>
 #include <algorithm>
 #include <fstream>
@@ -10,6 +9,15 @@
 
 App::App(){
 	VKContext = std::make_unique<VulkanContext>(*myWindow);
+
+	int width = 0, height = 0;
+	myWindow->getFramebufferSize(&width, &height);
+	mySwapchain = std::make_unique<MySwapchain>(
+		*VKContext,
+		static_cast<uint32_t>(width),
+		static_cast<uint32_t>(height)
+	);
+
     initVulkan();
 }
 
@@ -25,70 +33,11 @@ void App::run(){
 }
 
 void App::initVulkan(){
-	createSwapChain();
-	createImageViews();
 	createGraphicsPipeline();
+	{
 	createCommandPool();
 	createCommandBuffers();
 	createSyncObjects();
-}
-
-void App::createSwapChain(){
-	auto& physicalDevice = VKContext->getPhysicalDevice();
-	auto& device = VKContext->getDevice();
-	auto& surface = VKContext->getSurface();
-	vk::SurfaceCapabilitiesKHR surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(*surface);
-	swapChainExtent                                = chooseSwapExtent(surfaceCapabilities);
-	uint32_t minImageCount                         = chooseSwapMinImageCount(surfaceCapabilities);
-
-	std::vector<vk::SurfaceFormatKHR> availableFormats = physicalDevice.getSurfaceFormatsKHR(*surface);
-	swapChainSurfaceFormat                             = chooseSwapSurfaceFormat(availableFormats);
-
-	std::vector<vk::PresentModeKHR> availablePresentModes = physicalDevice.getSurfacePresentModesKHR(*surface);
-	vk::PresentModeKHR              presentMode           = chooseSwapPresentMode(availablePresentModes);
-
-	vk::SwapchainCreateInfoKHR swapChainCreateInfo{.surface          = *surface,
-													.minImageCount    = minImageCount,
-													.imageFormat      = swapChainSurfaceFormat.format,
-													.imageColorSpace  = swapChainSurfaceFormat.colorSpace,
-													.imageExtent      = swapChainExtent,
-													.imageArrayLayers = 1,
-													.imageUsage       = vk::ImageUsageFlagBits::eColorAttachment,
-													.imageSharingMode = vk::SharingMode::eExclusive,
-													.preTransform     = surfaceCapabilities.currentTransform,
-													.compositeAlpha   = vk::CompositeAlphaFlagBitsKHR::eOpaque,
-													.presentMode      = presentMode,
-													.clipped          = true};
-
-	swapChain       = vk::raii::SwapchainKHR(device, swapChainCreateInfo);
-	swapChainImages = swapChain.getImages();
-}
-
-vk::Extent2D App::chooseSwapExtent(vk::SurfaceCapabilitiesKHR const &capabilities){
-		if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
-		{
-			return capabilities.currentExtent;
-		}
-		int width, height;
-		myWindow->getFramebufferSize(&width, &height);
-		
-		return {
-		    std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
-		    std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)};
-}
-
-void App::createImageViews(){
-	assert(swapChainImageViews.empty());
-
-	vk::ImageViewCreateInfo imageViewCreateInfo{.viewType         = vk::ImageViewType::e2D,
-												.format           = swapChainSurfaceFormat.format,
-												.subresourceRange = {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}};
-
-	auto& device = VKContext->getDevice();
-	for (auto &image : swapChainImages)
-	{
-		imageViewCreateInfo.image = image;
-		swapChainImageViews.emplace_back(device, imageViewCreateInfo);
 	}
 }
 
@@ -130,6 +79,7 @@ void App::createGraphicsPipeline() {
 	vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount = 0, .pushConstantRangeCount = 0};
 	pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
 
+	const auto& swapChainSurfaceFormat = mySwapchain->getSurfaceFormat();
 	vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfo> pipelineCreateInfoChain = {
 		{.stageCount          = 2,
 			.pStages             = shaderStages,
@@ -173,6 +123,7 @@ void App::createCommandBuffers(){
 void App::createSyncObjects(){
 	assert(presentCompleteSemaphores.empty() && renderFinishedSemaphores.empty() && inFlightFences.empty());
 	auto& device = VKContext->getDevice();
+	const auto& swapChainImages = mySwapchain->getImages();
 	for (size_t i = 0; i < swapChainImages.size(); i++){
 		renderFinishedSemaphores.emplace_back(device, vk::SemaphoreCreateInfo());
 	}
@@ -198,6 +149,9 @@ void App::recordCommandBuffer(uint32_t imageIndex){
 		vk::PipelineStageFlagBits2::eColorAttachmentOutput,        // srcStage
 		vk::PipelineStageFlagBits2::eColorAttachmentOutput         // dstStage
 	);
+	const auto& swapChainImageViews = mySwapchain->getImageViews();
+	const auto& swapChainExtent = mySwapchain->getExtent();
+
 	vk::ClearColorValue colorValue = vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f});
 	vk::ClearValue clearValue(colorValue);
 	vk::RenderingAttachmentInfo attachmentInfo = {
@@ -241,6 +195,7 @@ void App::transition_image_layout(
 	vk::PipelineStageFlags2 src_stage_mask,
 	vk::PipelineStageFlags2 dst_stage_mask){
 		
+	const auto& swapChainImages = mySwapchain->getImages();
 	vk::ImageMemoryBarrier2 barrier = {
 		.srcStageMask        = src_stage_mask,
 		.srcAccessMask       = src_access_mask,
@@ -268,7 +223,8 @@ void App::transition_image_layout(
 void App::drawFrame() {
     // Wait for the previous frame using this slot to finish
 	auto& device = VKContext->getDevice();
-	auto& queue = VKContext-> getQueue();
+	auto& queue = VKContext->getQueue();
+	auto& swapChain = mySwapchain->getSwapchain();
     auto fenceResult = device.waitForFences(*inFlightFences[frameIndex], vk::True, UINT64_MAX);
     if (fenceResult != vk::Result::eSuccess) {
         throw std::runtime_error("failed to wait for fence!");
@@ -339,11 +295,6 @@ void App::drawFrame() {
     frameIndex = (frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-void App::cleanupSwapChain(){
-    swapChainImageViews.clear();
-    swapChain = nullptr;
-}
-
 void App::recreateSwapChain(){
     int width = 0, height = 0;
 	myWindow->getFramebufferSize(&width, &height);
@@ -360,35 +311,11 @@ void App::recreateSwapChain(){
 	auto& device = VKContext->getDevice();
 	device.waitIdle();
 
-	cleanupSwapChain();
-	createSwapChain();
-	createImageViews();
-}
-
-uint32_t App::chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities){
-  auto minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
-  if ((0 < surfaceCapabilities.maxImageCount) && (surfaceCapabilities.maxImageCount < minImageCount))
-  {
-    minImageCount = surfaceCapabilities.maxImageCount;
-  }
-  return minImageCount;
-}
-
-vk::SurfaceFormatKHR App::chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const &availableFormats){
-  assert(!availableFormats.empty());
-  const auto formatIt = std::ranges::find_if(
-      availableFormats,
-      [](const auto &format) { return format.format == vk::Format::eB8G8R8A8Srgb && format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear; });
-  return formatIt != availableFormats.end() ? *formatIt : availableFormats[0];
-}
-
-
-vk::PresentModeKHR App::chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const &availablePresentModes){
-  assert(std::ranges::any_of(availablePresentModes, [](auto presentMode) { return presentMode == vk::PresentModeKHR::eFifo; }));
-  return std::ranges::any_of(availablePresentModes,
-                              [](const vk::PresentModeKHR value) { return vk::PresentModeKHR::eMailbox == value; }) ?
-              vk::PresentModeKHR::eMailbox :
-              vk::PresentModeKHR::eFifo;
+	mySwapchain->recreate(
+		*VKContext,
+		static_cast<uint32_t>(width),
+		static_cast<uint32_t>(height)
+	);
 }
 
 std::vector<char> App::readFile(const std::string &filename){

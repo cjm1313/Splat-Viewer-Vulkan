@@ -4,7 +4,9 @@
 #include "app/myWindow.h"
 #include <stdint.h>
 #include <vector>
+#include <memory>
 #include "vk/vulkanContext.h"
+#include "vk/mySwapchain.h"
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t W_WIDTH = 1280;
@@ -23,11 +25,7 @@ class App {
     
     std::unique_ptr<VulkanContext> VKContext = nullptr;
 
-    vk::raii::SwapchainKHR               swapChain      = nullptr;
-	  std::vector<vk::Image>               swapChainImages;
-	  vk::SurfaceFormatKHR                 swapChainSurfaceFormat;
-	  vk::Extent2D                         swapChainExtent;
-	  std::vector<vk::raii::ImageView>     swapChainImageViews;
+    std::unique_ptr<MySwapchain> mySwapchain = nullptr;
 
     vk::raii::PipelineLayout             pipelineLayout = nullptr;
     vk::raii::Pipeline                   graphicsPipeline = nullptr;
@@ -40,12 +38,6 @@ class App {
     uint32_t                             frameIndex = 0;
 
     void initVulkan();
-
-    void createSwapChain();
-
-    vk::Extent2D chooseSwapExtent(vk::SurfaceCapabilitiesKHR const &capabilities);
-
-    void createImageViews();
     
     void createGraphicsPipeline();
 
@@ -69,15 +61,7 @@ class App {
 
     void drawFrame();
 
-    void cleanupSwapChain();
-
     void recreateSwapChain();
-
-    static uint32_t chooseSwapMinImageCount(vk::SurfaceCapabilitiesKHR const &surfaceCapabilities);
-
-    static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const &availableFormats);
-
-    static vk::PresentModeKHR chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const &availablePresentModes);
 
     static std::vector<char> readFile(const std::string &filename);
 

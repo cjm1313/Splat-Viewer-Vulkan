@@ -1,7 +1,8 @@
 #ifndef MYWINDOW_H
 #define MYWINDOW_H
 
-#include <GLFW/glfw3.h>
+class GLFWwindow;
+
 #include <vulkan/vulkan_raii.hpp>
 
 class MyWindow{

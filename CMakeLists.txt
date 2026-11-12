@@ -19,6 +19,7 @@ add_executable(Splat-Viewer-Vulkan
     src/app/app.cpp
     src/app/myWindow.cpp
     src/vk/vulkanContext.cpp
+    src/vk/mySwapchain.cpp
     
 )
 

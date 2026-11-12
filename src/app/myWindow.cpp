@@ -1,9 +1,6 @@
-
 #include "app/myWindow.h"
-
+#include <GLFW/glfw3.h>
 #include <stdexcept>
-#include <cstdlib>
-#include <iostream>
 
 MyWindow::MyWindow(){
 if (!glfwInit()){
