@@ -3,7 +3,6 @@
 #include <stdexcept>
 #include <limits>
 #include <algorithm>
-#include <fstream>
 #include <iostream>
 
 
@@ -17,6 +16,9 @@ App::App(){
 		static_cast<uint32_t>(width),
 		static_cast<uint32_t>(height)
 	);
+
+	auto pipelineConfig = PipelineConfigInfo::defaultConfig(mySwapchain->getSurfaceFormat().format);
+	myPipeline = std::make_unique<MyPipeline>(*VKContext, pipelineConfig);
 
     initVulkan();
 }
@@ -33,77 +35,9 @@ void App::run(){
 }
 
 void App::initVulkan(){
-	createGraphicsPipeline();
-	{
 	createCommandPool();
 	createCommandBuffers();
 	createSyncObjects();
-	}
-}
-
-void App::createGraphicsPipeline() {
-	vk::raii::ShaderModule shaderModuleVert = createShaderModule(readFile(std::string(SHADER_DIR) + "shader.vert.spv"));
-	vk::raii::ShaderModule shaderModuleFrag = createShaderModule(readFile(std::string(SHADER_DIR) + "shader.frag.spv"));
-
-	vk::PipelineShaderStageCreateInfo vertShaderStageInfo{.stage = vk::ShaderStageFlagBits::eVertex, .module = shaderModuleVert, .pName = "main"};
-	vk::PipelineShaderStageCreateInfo fragShaderStageInfo{.stage = vk::ShaderStageFlagBits::eFragment, .module = shaderModuleFrag, .pName = "main"};
-	vk::PipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
-
-
-	vk::PipelineVertexInputStateCreateInfo   vertexInputInfo;
-	vk::PipelineInputAssemblyStateCreateInfo inputAssembly{.topology = vk::PrimitiveTopology::eTriangleList};
-	vk::PipelineViewportStateCreateInfo      viewportState{.viewportCount = 1, .scissorCount = 1};
-
-	vk::PipelineRasterizationStateCreateInfo rasterizer{.depthClampEnable        = vk::False,
-														.rasterizerDiscardEnable = vk::False,
-														.polygonMode             = vk::PolygonMode::eFill,
-														.cullMode                = vk::CullModeFlagBits::eBack,
-														.frontFace               = vk::FrontFace::eClockwise,
-														.depthBiasEnable         = vk::False,
-														.lineWidth               = 1.0f};
-
-	vk::PipelineMultisampleStateCreateInfo multisampling{.rasterizationSamples = vk::SampleCountFlagBits::e1, .sampleShadingEnable = vk::False};
-
-	vk::PipelineColorBlendAttachmentState colorBlendAttachment{
-		.blendEnable    = vk::False,
-		.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA};
-
-	vk::PipelineColorBlendStateCreateInfo colorBlending{
-		.logicOpEnable = vk::False, .logicOp = vk::LogicOp::eCopy, .attachmentCount = 1, .pAttachments = &colorBlendAttachment};
-
-	std::vector<vk::DynamicState>      dynamicStates = {vk::DynamicState::eViewport, vk::DynamicState::eScissor};
-	vk::PipelineDynamicStateCreateInfo dynamicState{.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), .pDynamicStates = dynamicStates.data()};
-	
-
-	auto& device = VKContext->getDevice();
-	vk::PipelineLayoutCreateInfo pipelineLayoutInfo{.setLayoutCount = 0, .pushConstantRangeCount = 0};
-	pipelineLayout = vk::raii::PipelineLayout(device, pipelineLayoutInfo);
-
-	const auto& swapChainSurfaceFormat = mySwapchain->getSurfaceFormat();
-	vk::StructureChain<vk::GraphicsPipelineCreateInfo, vk::PipelineRenderingCreateInfo> pipelineCreateInfoChain = {
-		{.stageCount          = 2,
-			.pStages             = shaderStages,
-			.pVertexInputState   = &vertexInputInfo,
-			.pInputAssemblyState = &inputAssembly,
-			.pViewportState      = &viewportState,
-			.pRasterizationState = &rasterizer,
-			.pMultisampleState   = &multisampling,
-			.pColorBlendState    = &colorBlending,
-			.pDynamicState       = &dynamicState,
-			.layout              = pipelineLayout,
-			.renderPass          = nullptr},
-		{.colorAttachmentCount = 1, .pColorAttachmentFormats = &swapChainSurfaceFormat.format}};
-
-	graphicsPipeline = vk::raii::Pipeline(device, nullptr, pipelineCreateInfoChain.get<vk::GraphicsPipelineCreateInfo>());
-}
-
-vk::raii::ShaderModule App::createShaderModule(const std::vector<char> &code) const {
-
-	auto& device = VKContext->getDevice();
-	vk::ShaderModuleCreateInfo createInfo{.codeSize = code.size() * sizeof(char), .pCode = reinterpret_cast<const uint32_t *>(code.data())};
-	vk::raii::ShaderModule     shaderModule{device, createInfo};
-
-	return shaderModule;
 }
 
 void App::createCommandPool(){
@@ -167,7 +101,7 @@ void App::recordCommandBuffer(uint32_t imageIndex){
 		.pColorAttachments    = &attachmentInfo};
 
 	commandBuffer.beginRendering(renderingInfo);
-	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *graphicsPipeline);
+	commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *myPipeline->getPipeline());
 	commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(swapChainExtent.width), static_cast<float>(swapChainExtent.height), 0.0f, 1.0f));
 	commandBuffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapChainExtent));
 	commandBuffer.draw(3, 1, 0, 0);
@@ -316,17 +250,4 @@ void App::recreateSwapChain(){
 		static_cast<uint32_t>(width),
 		static_cast<uint32_t>(height)
 	);
-}
-
-std::vector<char> App::readFile(const std::string &filename){
-  std::ifstream file(filename, std::ios::ate | std::ios::binary);
-  if (!file.is_open())
-  {
-    throw std::runtime_error("failed to open file!");
-  }
-  std::vector<char> buffer(file.tellg());
-  file.seekg(0, std::ios::beg);
-  file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-  file.close();
-  return buffer;
 }

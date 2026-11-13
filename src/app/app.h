@@ -7,6 +7,7 @@
 #include <memory>
 #include "vk/vulkanContext.h"
 #include "vk/mySwapchain.h"
+#include "vk/myPipeline.h"
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 constexpr uint32_t W_WIDTH = 1280;
@@ -27,8 +28,8 @@ class App {
 
     std::unique_ptr<MySwapchain> mySwapchain = nullptr;
 
-    vk::raii::PipelineLayout             pipelineLayout = nullptr;
-    vk::raii::Pipeline                   graphicsPipeline = nullptr;
+    std::unique_ptr<MyPipeline> myPipeline = nullptr;
+
     vk::raii::CommandPool                commandPool      = nullptr;
 	  std::vector<vk::raii::CommandBuffer> commandBuffers;
 
@@ -38,10 +39,6 @@ class App {
     uint32_t                             frameIndex = 0;
 
     void initVulkan();
-    
-    void createGraphicsPipeline();
-
-    [[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char> &code) const;
 
     void createCommandBuffers();
     
@@ -62,8 +59,6 @@ class App {
     void drawFrame();
 
     void recreateSwapChain();
-
-    static std::vector<char> readFile(const std::string &filename);
 
 };
 
